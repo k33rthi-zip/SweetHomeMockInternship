@@ -2002,12 +2002,73 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     }
     return strokeWidth;
   }
-  
+
   /**
-   * Prints this component plan at the scale given in the home print attributes or at a scale 
-   * that makes it fill <code>pageFormat</code> imageable size if this attribute is <code>null</code>.
+   * Prints one plan per viewable level, in the order of the home's levels.
    */
   public int print(Graphics g, PageFormat pageFormat, int pageIndex) {
+    List<Level> printedLevels = new ArrayList<Level>();
+    for (Level level : this.home.getLevels()) {
+      if (level.isViewable()) {
+        printedLevels.add(level);
+      }
+    }
+    if (printedLevels.isEmpty()) {
+      return printSelectedLevel(g, pageFormat, pageIndex);
+    }
+
+    Level oldSelectedLevel = this.home.getSelectedLevel();
+    List<Selectable> oldSelectedItems = this.home.getSelectedItems();
+    boolean oldAllLevelsSelection = this.home.isAllLevelsSelection();
+    try {
+      int remainingIndex = pageIndex;
+      for (Level level : printedLevels) {
+        this.home.setSelectedLevel(level);
+        int levelPageCount = getSelectedLevelPageCount(g, pageFormat);
+        if (remainingIndex < levelPageCount) {
+          return printSelectedLevel(g, pageFormat, remainingIndex);
+        }
+        remainingIndex -= levelPageCount;
+      }
+      return NO_SUCH_PAGE;
+    } finally {
+      this.home.setSelectedLevel(oldSelectedLevel);
+      this.home.setSelectedItems(oldSelectedItems);
+      this.home.setAllLevelsSelection(oldAllLevelsSelection);
+    }
+  }
+
+  /**
+   * Returns the number of pages needed to print the plan at the selected level.
+   */
+  private int getSelectedLevelPageCount(Graphics g, PageFormat pageFormat) {
+    Rectangle2D printedItemBounds = getItemsBounds(g, getPaintedItems());
+    if (printedItemBounds == null) {
+      return 0;
+    }
+    if (this.home.getPrint() == null || this.home.getPrint().getPlanScale() == null) {
+      return 1;
+    }
+    float printScale = this.home.getPrint().getPlanScale().floatValue() * LengthUnit.centimeterToInch(72);
+    double imageableWidth = pageFormat.getImageableWidth();
+    double imageableHeight = pageFormat.getImageableHeight();
+    int pagesPerRow = (int)(printedItemBounds.getWidth() * printScale / imageableWidth);
+    if (printedItemBounds.getWidth() * printScale != imageableWidth) {
+      pagesPerRow++;
+    }
+    int pagesPerColumn = (int)(printedItemBounds.getHeight() * printScale / imageableHeight);
+    if (printedItemBounds.getHeight() * printScale != imageableHeight) {
+      pagesPerColumn++;
+    }
+    return pagesPerRow * pagesPerColumn;
+  }
+
+  /**
+   * Prints component plan at the selected level at the scale given in the home print 
+   * attributes or at a scale that makes it fill <code>pageFormat</code> imageable size
+   * if this attribute is <code>null</code>.
+   */
+  public int printSelectedLevel(Graphics g, PageFormat pageFormat, int pageIndex) {
     List<Selectable> printedItems = getPaintedItems(); 
     Rectangle2D printedItemBounds = getItemsBounds(g, printedItems);
     if (printedItemBounds != null) {
@@ -2021,7 +2082,6 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
       int pagesPerRow;
       int pagesPerColumn;
       if (this.home.getPrint() == null || this.home.getPrint().getPlanScale() == null) {
-        // Compute a scale that ensures the plan will fill the component if plan scale is null
         printScale = getPrintPreferredScale(g, pageFormat) * LengthUnit.centimeterToInch(72);
         if (pageIndex > 0) {
           return NO_SUCH_PAGE;
@@ -2031,7 +2091,7 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
         rowIndex   = 0;
         columnIndex = 0;
       } else {
-        // Apply print scale to paper size expressed in 1/72nds of an inch
+        
         printScale = this.home.getPrint().getPlanScale().floatValue() * LengthUnit.centimeterToInch(72);
         pagesPerRow = (int)(printedItemBounds.getWidth() * printScale / imageableWidth);
         if (printedItemBounds.getWidth() * printScale != imageableWidth) {

@@ -750,8 +750,9 @@ public class FurnitureTable extends JTable implements View, Printable {
           return headerRendererLabel;
         }
       };
-    for (int columnIndex = 0, n = columnModel.getColumnCount(); columnIndex < n; columnIndex++) {
-      final TableColumn tableColumn = columnModel.getColumn(columnIndex);
+
+       List<TableColumn> columnsToPrint = getColumnsToPrint(columnModel);
+    for (final TableColumn tableColumn : columnsToPrint) {
       // Create a printable column from existing table column
       TableColumn printableColumn = new TableColumn();
       printableColumn.setIdentifier(tableColumn.getIdentifier());
@@ -780,6 +781,31 @@ public class FurnitureTable extends JTable implements View, Printable {
       printableColumnModel.addColumn(printableColumn);
     }    
     return print(g, pageFormat, pageIndex, printableColumnModel, Color.BLACK);
+  }
+
+  /**
+   * Returns the on-screen columns and the level column
+   */
+  private List<TableColumn> getColumnsToPrint(TableColumnModel columnModel) {
+    List<TableColumn> columnsToPrint = new ArrayList<TableColumn>();
+    boolean hasLevelColumn = false;
+    int nameColumnPosition = -1;
+    for (int i = 0; i < columnModel.getColumnCount(); i++) {
+      TableColumn column = columnModel.getColumn(i);
+      columnsToPrint.add(column);
+      if (column.getIdentifier() == HomePieceOfFurniture.SortableProperty.LEVEL) {
+        hasLevelColumn = true;
+      } else if (column.getIdentifier() == HomePieceOfFurniture.SortableProperty.NAME) {
+        nameColumnPosition = i;
+      }
+    }
+    Home home = (Home)((FurnitureTreeTableModel)getModel()).getRoot();
+    if (!hasLevelColumn && !home.getLevels().isEmpty() && columnModel instanceof FurnitureTableColumnModel) {
+      TableColumn levelColumn = ((FurnitureTableColumnModel)columnModel).availableColumns
+          .get(HomePieceOfFurniture.SortableProperty.LEVEL);
+    columnsToPrint.add(levelColumn);
+    }
+    return columnsToPrint;
   }
 
   /**
